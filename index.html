@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Tiempos Logísticos 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f4f5f7; color: #1a1a2e; font-size: 14px; }
+
+  header { background: #1a1a2e; color: white; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .last-update { font-size: 11px; opacity: 0.75; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px; }
+
+  .main-tabs { display: flex; background: #13132a; border-bottom: 2px solid #2c2c4a; }
+  .main-tab { padding: 12px 28px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.45); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; letter-spacing: 0.03em; transition: all 0.15s; user-select: none; }
+  .main-tab:hover { color: rgba(255,255,255,0.8); }
+  .main-tab.active { color: white; border-bottom-color: #4a9eed; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+  .pin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  .pin-box { background: white; border-radius: 12px; padding: 32px 36px; text-align: center; width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+  .pin-box h2 { font-size: 16px; margin-bottom: 6px; }
+  .pin-box p { font-size: 13px; color: #888; margin-bottom: 18px; }
+  .pin-box input { width: 100%; padding: 10px 14px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: 22px; text-align: center; letter-spacing: 8px; outline: none; margin-bottom: 12px; }
+  .pin-box input:focus { border-color: #4a9eed; }
+  .pin-box .pin-btn { width: 100%; padding: 10px; background: #1a1a2e; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .pin-box .pin-btn:hover { background: #2c2c50; }
+  .pin-error { color: #e74c3c; font-size: 12px; margin-top: 8px; display: none; }
+
+  .upload-section { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .upload-box { background: white; border: 1.5px dashed #c5cdd9; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+  .upload-box:hover { border-color: #2980b9; }
+  .upload-box.loaded { border-color: #27ae60; border-style: solid; background: #f0fff4; }
+  .upload-box label { cursor: pointer; display: block; }
+  .upload-box .icon { font-size: 28px; margin-bottom: 6px; }
+  .upload-box .title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .upload-box .status { font-size: 11px; color: #666; }
+  .upload-box input[type=file] { display: none; }
+
+  .instructions { background: #e8f4fd; border: 1px solid #b3d9f5; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #1a5276; }
+  .instructions strong { display: block; margin-bottom: 4px; }
+
+  .controls { background: white; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; border: 1px solid #e2e8f0; }
+  .controls label { font-size: 12px; font-weight: 600; color: #555; margin-right: 4px; }
+  .controls select { border: 1px solid #cbd5e0; border-radius: 6px; padding: 6px 10px; font-size: 13px; background: white; color: #1a1a2e; }
+  .tab-group { display: flex; border: 1px solid #cbd5e0; border-radius: 6px; overflow: hidden; }
+  .tab-btn { padding: 6px 18px; font-size: 13px; border: none; background: white; cursor: pointer; color: #555; font-weight: 500; transition: background 0.15s; }
+  .tab-btn.active { background: #1a1a2e; color: white; }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .metric { background: white; border-radius: 8px; padding: 16px 18px; border: 1px solid #e2e8f0; }
+  .metric .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 6px; }
+  .metric .val { font-size: 26px; font-weight: 700; color: #1a1a2e; }
+  .metric .sub { font-size: 11px; color: #888; margin-top: 2px; }
+  .metric.good .val { color: #27ae60; }
+  .metric.warn .val { color: #e67e22; }
+  .metric.bad .val { color: #e74c3c; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-full { margin-bottom: 16px; }
+  .card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; padding: 18px; }
+  .card h3 { font-size: 13px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f8f9fa; font-size: 11px; font-weight: 600; text-transform: uppercase; color: #777; padding: 8px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f0f2f5; color: #333; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfc; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #d4edda; color: #155724; }
+  .badge-amber { background: #fff3cd; color: #856404; }
+  .badge-red { background: #f8d7da; color: #721c24; }
+
+  .spot-result { background: #f8f9fa; border-radius: 8px; padding: 14px 18px; margin-top: 12px; text-align: center; font-size: 22px; font-weight: 700; color: #1a1a2e; border: 1px solid #e2e8f0; }
+  .spot-result .spot-label { font-size: 11px; font-weight: 400; color: #888; display: block; margin-bottom: 2px; }
+
+  .no-data { text-align: center; color: #aaa; font-size: 13px; padding: 30px; }
+  .loading-bar { background: #e8f4fd; border: 1px solid #b3d9f5; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #1a5276; text-align: center; }
+  .error-bar { background: #fde8e8; border: 1px solid #f5b3b3; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #7a1a1a; }
+
+  .clear-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; }
+  .clear-btn:hover { background: rgba(255,255,255,0.1); }
+
+  @media (max-width: 700px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .upload-section { grid-template-columns: 1fr; }
+    .main-tab { padding: 10px 14px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📦 Dashboard — Tiempos Logísticos 2026</h1>
+  <div class="header-right">
+    <span class="last-update" id="last-update">Sin datos cargados</span>
+  </div>
+</header>
+
+<div class="main-tabs">
+  <div class="main-tab active" id="tab-viz" onclick="switchTab('viz')">📊 Visualización</div>
+  <div class="main-tab" id="tab-carga" onclick="switchTab('carga')">📂 Carga de datos</div>
+</div>
+
+<!-- PIN MODAL -->
+<div class="pin-overlay" id="pin-overlay" style="display:none">
+  <div class="pin-box">
+    <h2>🔒 Acceso restringido</h2>
+    <p>Ingresá el PIN para cargar datos</p>
+    <input type="password" id="pin-input" maxlength="6" placeholder="••••" onkeydown="if(event.key==='Enter')checkPin()">
+    <button class="pin-btn" onclick="checkPin()">Ingresar</button>
+    <div class="pin-error" id="pin-error">PIN incorrecto. Intentá de nuevo.</div>
+  </div>
+</div>
+
+<!-- PANEL VISUALIZACIÓN -->
+<div class="panel active" id="panel-viz">
+  <div class="main">
+
+    <div class="controls">
+      <div>
+        <label>Dirección:</label>
+        <div class="tab-group">
+          <button class="tab-btn active" onclick="setDir('IDA',this)">IDA</button>
+          <button class="tab-btn" onclick="setDir('VUELTA',this)">VUELTA</button>
+        </div>
+      </div>
+      <div>
+        <label>Mes:</label>
+        <select id="sel-mes" onchange="render()"></select>
+      </div>
+      <div>
+        <label>Oficina:</label>
+        <select id="sel-oficina" onchange="updateSpot()"></select>
+      </div>
+    </div>
+
+    <div class="metrics" id="metrics-row">
+      <div class="card no-data" style="grid-column:1/-1">Cargá los archivos CSV en la pestaña "Carga de datos" para ver el dashboard</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Eficiencia global por mes</h3>
+        <div style="position:relative; height:240px;">
+          <canvas id="chart-global"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Consulta puntual</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:10px;">Seleccioná oficina y mes en los filtros de arriba.</p>
+        <div class="spot-result" id="spot-result">
+          <span class="spot-label">Seleccioná oficina y mes</span>—
+        </div>
+        <div style="margin-top:14px;">
+          <h3 style="margin-bottom:10px;">Evolución — oficina seleccionada</h3>
+          <div style="position:relative; height:140px;">
+            <canvas id="chart-oficina"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-full card">
+      <h3>Eficiencia por oficina — <span id="mes-label">mes seleccionado</span></h3>
+      <div style="position:relative;" id="chart-oficinas-wrap">
+        <canvas id="chart-oficinas"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Oficinas principales</h3>
+        <table id="tabla-fijas">
+          <thead><tr><th>Oficina</th><th>Prom.</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>🕐 Distribución por demora (días hábiles)</h3>
+        <p style="font-size:11px;color:#888;margin:-8px 0 12px;">Oficinas según plazo de entrega comprometido.</p>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:center;">
+          <div style="position:relative;height:180px;width:180px;flex-shrink:0;">
+            <canvas id="chart-demoras"></canvas>
+          </div>
+          <div id="demoras-legend" style="font-size:13px;line-height:2.2;min-width:180px;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PANEL CARGA -->
+<div class="panel" id="panel-carga">
+  <div class="main">
+    <div class="instructions">
+      <strong>¿Cómo actualizar los datos?</strong>
+      Reemplazá los archivos <strong>ida.csv</strong> y <strong>vuelta.csv</strong> en Netlify con los nuevos. Los visitantes verán los datos actualizados al recargar la página.
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="card" id="estado-ida" style="text-align:center;padding:24px;">
+        <div style="font-size:32px;margin-bottom:8px;">📄</div>
+        <div style="font-weight:600;margin-bottom:4px;">ida.csv</div>
+        <div id="info-ida" style="font-size:12px;color:#888;">Cargando...</div>
+      </div>
+      <div class="card" id="estado-vuelta" style="text-align:center;padding:24px;">
+        <div style="font-size:32px;margin-bottom:8px;">📄</div>
+        <div style="font-weight:600;margin-bottom:4px;">vuelta.csv</div>
+        <div id="info-vuelta" style="font-size:12px;color:#888;">Cargando...</div>
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <button onclick="loadData(true)" style="padding:10px 24px;background:#1a1a2e;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">🔄 Recargar datos ahora</button>
+    </div>
+    <div style="margin-top:20px;" class="card" style="background:#f0fff4;">
+      <p style="font-size:13px;color:#555;margin-bottom:8px;"><strong>Para actualizar los datos:</strong></p>
+      <ol style="font-size:13px;color:#555;padding-left:20px;line-height:2;">
+        <li>Exportá tu Excel como CSV (Archivo → Guardar como → CSV UTF-8)</li>
+        <li>Renombrá el archivo como <code style="background:#f0f0f0;padding:1px 6px;border-radius:4px;">ida.csv</code> o <code style="background:#f0f0f0;padding:1px 6px;border-radius:4px;">vuelta.csv</code></li>
+        <li>Ingresá a <a href="https://app.netlify.com" target="_blank" style="color:#2980b9;">app.netlify.com</a> → tu sitio → <strong>Deploys</strong></li>
+        <li>Arrastrá los archivos nuevos a la sección <strong>"Deploy manually"</strong> junto con el <code style="background:#f0f0f0;padding:1px 6px;border-radius:4px;">index.html</code></li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── PIN (cambiá este valor) ───
+const PIN_CORRECTO = '1234';
+let cargaDesbloqueada = false;
+
+function switchTab(tab) {
+  if (tab === 'carga' && !cargaDesbloqueada) {
+    document.getElementById('pin-overlay').style.display = 'flex';
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-error').style.display = 'none';
+    setTimeout(() => document.getElementById('pin-input').focus(), 80);
+    return;
+  }
+  document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+function checkPin() {
+  if (document.getElementById('pin-input').value === PIN_CORRECTO) {
+    cargaDesbloqueada = true;
+    document.getElementById('pin-overlay').style.display = 'none';
+    switchTab('carga');
+  } else {
+    document.getElementById('pin-error').style.display = 'block';
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-input').focus();
+  }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('pin-overlay').style.display = 'none';
+});
+
+// ─── DATOS ───
+const MES_ALIAS = {
+  'ENERO 26':'ENERO 26','ENE-26':'ENERO 26','ENE 26':'ENERO 26',
+  'FEBRERO 26':'FEBRERO 26','FEB-26':'FEBRERO 26','FEB 26':'FEBRERO 26',
+  'MARZO 26':'MARZO 26','MAR-26':'MARZO 26','MAR 26':'MARZO 26',
+  'ABRIL 26':'ABRIL 26','ABR-26':'ABRIL 26','ABR 26':'ABRIL 26',
+  'MAYO 26':'MAYO 26','MAY-26':'MAYO 26','MAY 26':'MAYO 26',
+  'JUNIO 26':'JUNIO 26','JUN-26':'JUNIO 26','JUN 26':'JUNIO 26',
+  'JULIO 26':'JULIO 26','JUL-26':'JULIO 26','JUL 26':'JULIO 26',
+  'AGOSTO 26':'AGOSTO 26','AGO-26':'AGOSTO 26','AGO 26':'AGOSTO 26',
+  'SEPTIEMBRE 26':'SEPTIEMBRE 26','SEP-26':'SEPTIEMBRE 26','SEPT-26':'SEPTIEMBRE 26','SEP 26':'SEPTIEMBRE 26',
+  'OCTUBRE 26':'OCTUBRE 26','OCT-26':'OCTUBRE 26','OCT 26':'OCTUBRE 26',
+  'NOVIEMBRE 26':'NOVIEMBRE 26','NOV-26':'NOVIEMBRE 26','NOV 26':'NOVIEMBRE 26',
+  'DICIEMBRE 26':'DICIEMBRE 26','DIC-26':'DICIEMBRE 26','DIC 26':'DICIEMBRE 26'
+};
+const MESES_NOMBRE = {
+  'ENERO 26':'Ene','FEBRERO 26':'Feb','MARZO 26':'Mar','ABRIL 26':'Abr',
+  'MAYO 26':'May','JUNIO 26':'Jun','JULIO 26':'Jul','AGOSTO 26':'Ago',
+  'SEPTIEMBRE 26':'Sep','OCTUBRE 26':'Oct','NOVIEMBRE 26':'Nov','DICIEMBRE 26':'Dic'
+};
+const MESES_ORDEN = Object.keys(MESES_NOMBRE);
+const FIJAS = ['CABA','Neuquen','Cordoba','Mendoza','Rosario'];
+let DATA = { IDA: null, VUELTA: null };
+let dir = 'IDA';
+let chartGlobal, chartOficinas, chartOficina, chartDemoras;
+
+// ─── PARSEO CSV ───
+function parseCSV(text, sheetKey) {
+  text = text.replace(/^\uFEFF/, '');
+  const sep = text.indexOf(';') !== -1 ? ';' : ',';
+  const rows = Papa.parse(text.trim(), { skipEmptyLines: true, delimiter: sep }).data;
+  let headerIdx = rows.findIndex(r => r.some(c => String(c).trim().toUpperCase() === 'OFICINA'));
+  if (headerIdx === -1) headerIdx = 0;
+  const rawHeaders = rows[headerIdx].map(c => String(c).replace(/^\uFEFF/,'').trim().toUpperCase());
+  const offIdx = rawHeaders.findIndex(h => h === 'OFICINA');
+  const demoraIdx = rawHeaders.findIndex(h => h.includes('DEMORA'));
+  const colMes = {};
+  rawHeaders.forEach((h, i) => { if (MES_ALIAS[h]) colMes[i] = MES_ALIAS[h]; });
+  const avail = MESES_ORDEN.filter(m => Object.values(colMes).includes(m));
+  const records = [];
+  let globalRec = null;
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const of = String(row[offIdx] || '').trim();
+    if (!of || of.toUpperCase() === 'OFICINA') continue;
+    const rec = { oficina: of };
+    if (demoraIdx >= 0) { const dv = parseFloat(String(row[demoraIdx]||'').trim()); rec._demora = isNaN(dv) ? null : dv; }
+    for (let ci = 0; ci < rawHeaders.length; ci++) {
+      const mk = colMes[ci]; if (!mk) continue;
+      const v = parseFloat(String(row[ci]||'').replace('%','').replace(',','.').trim());
+      rec[mk] = !isNaN(v) ? (v <= 1 ? Math.round(v*1000)/10 : Math.round(v*10)/10) : null;
+    }
+    for (const m of avail) if (!(m in rec)) rec[m] = null;
+    if (of.toUpperCase() === 'EFICIENCIA GLOBAL') globalRec = rec;
+    else records.push(rec);
+  }
+  DATA[sheetKey] = { records, global: globalRec, months: avail };
+  updateSelects();
+  render();
+}
+
+// ─── CARGA AUTOMÁTICA DESDE GITHUB ───
+const GITHUB_FILES = [
+  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/ida.csv',    key: 'IDA',    infoId: 'info-ida' },
+  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/vuelta.csv', key: 'VUELTA', infoId: 'info-vuelta' }
+];
+
+async function loadData(manual = false) {
+  document.getElementById('last-update').textContent = 'Cargando datos...';
+  let loaded = 0;
+
+  for (const f of GITHUB_FILES) {
+    const infoEl = document.getElementById(f.infoId);
+    if (infoEl) infoEl.textContent = '⏳ Cargando...';
+    try {
+      const url = manual ? f.url + '?t=' + Date.now() : f.url;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' — verificá que el archivo exista en el repositorio');
+      const text = await res.text();
+      parseCSV(text, f.key);
+      if (infoEl) infoEl.textContent = '✅ Cargado correctamente';
+      loaded++;
+    } catch(err) {
+      console.error('Error:', f.key, err.message);
+      if (infoEl) infoEl.innerHTML = '❌ ' + err.message;
+    }
+  }
+
+  const now = new Date();
+  const ts = now.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})
+           + ' ' + now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('last-update').textContent =
+    loaded > 0 ? 'Última actualización: ' + ts : 'Error al cargar datos';
+}
+
+function clearStorage() {}
+
+loadData();
+
+// ─── SELECTS ───
+function updateSelects() {
+  const d = DATA[dir]; if (!d) return;
+  const selMes = document.getElementById('sel-mes');
+  const selOf = document.getElementById('sel-oficina');
+  const curMes = selMes.value, curOf = selOf.value;
+  selMes.innerHTML = d.months.map(m => `<option value="${m}">${MESES_NOMBRE[m]||m}</option>`).join('');
+  if (curMes && d.months.includes(curMes)) selMes.value = curMes;
+  selOf.innerHTML = d.records.map(r => `<option value="${r.oficina}">${r.oficina}</option>`).join('');
+  if (curOf && d.records.find(r => r.oficina === curOf)) selOf.value = curOf;
+}
+
+function setDir(d, btn) {
+  dir = d;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateSelects(); render();
+}
+
+// ─── RENDER ───
+function render() {
+  const d = DATA[dir]; if (!d) return;
+  const mes = document.getElementById('sel-mes').value;
+  document.getElementById('mes-label').textContent = (MESES_NOMBRE[mes]||mes) + ' — ' + dir;
+  renderMetrics(d, mes);
+  renderChartGlobal(d);
+  renderChartOficinas(d, mes);
+  renderTablaFijas(d);
+  renderDemoras(d);
+  updateSpot();
+}
+
+function color(v) { return v===null?'#ccc':v>=95?'#27ae60':v>=85?'#f39c12':'#e74c3c'; }
+function badge(v) {
+  if (v===null) return '<span class="badge">—</span>';
+  if (v>=95) return `<span class="badge badge-green">${v}%</span>`;
+  if (v>=85) return `<span class="badge badge-amber">${v}%</span>`;
+  return `<span class="badge badge-red">${v}%</span>`;
+}
+
+// ─── MÉTRICAS ───
+function getGlobalVal(d, m) {
+  if (d.global && d.global[m] != null) return d.global[m];
+  const vals = d.records.map(r => r[m]).filter(v => v !== null);
+  return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10 : null;
+}
+
+function renderMetrics(d, mes) {
+  const gv = getGlobalVal(d, mes);
+  const vals = d.records.map(r => r[mes]).filter(v => v !== null);
+  const prom = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10 : null;
+  const min = vals.length ? Math.min(...vals) : null;
+  const cnt100 = vals.filter(v => v===100).length;
+  const cls = v => v==null?'':v>=95?'good':v>=85?'warn':'bad';
+  document.getElementById('metrics-row').innerHTML = `
+    <div class="metric ${cls(gv)}"><div class="lbl">Eficiencia global</div><div class="val">${gv!=null?gv+'%':'—'}</div><div class="sub">${MESES_NOMBRE[mes]||mes} · ${dir}</div></div>
+    <div class="metric ${cls(prom)}"><div class="lbl">Promedio oficinas</div><div class="val">${prom!=null?prom+'%':'—'}</div><div class="sub">${vals.length} oficinas con datos</div></div>
+    <div class="metric bad"><div class="lbl">Peor oficina</div><div class="val">${min!=null?min+'%':'—'}</div><div class="sub">${min!=null?d.records.find(r=>r[mes]===min)?.oficina:'—'}</div></div>
+    <div class="metric good"><div class="lbl">Oficinas al 100%</div><div class="val">${cnt100}</div><div class="sub">de ${vals.length} con datos</div></div>`;
+}
+
+// ─── CHART GLOBAL (etiquetas + drop lines) ───
+function renderChartGlobal(d) {
+  const avail = d.months.filter(m => getGlobalVal(d,m) !== null);
+  const labels = avail.map(m => MESES_NOMBRE[m]||m);
+  const values = avail.map(m => getGlobalVal(d,m));
+  if (chartGlobal) chartGlobal.destroy();
+  chartGlobal = new Chart(document.getElementById('chart-global'), {
+    type: 'line',
+    data: { labels, datasets: [{
+      data: values, borderColor: '#1a1a2e', backgroundColor: 'rgba(26,26,46,0.06)',
+      pointBackgroundColor: values.map(v=>color(v)), pointBorderColor: values.map(v=>color(v)),
+      pointRadius: 6, pointHoverRadius: 8, tension: 0.3, fill: true
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 28 } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' '+ctx.parsed.y+'%' }}},
+      scales: {
+        y: { min: 70, max: 100, ticks: { callback: v=>v+'%', font:{size:11} }, grid: { color:'rgba(0,0,0,0.05)' }},
+        x: { ticks: { font:{size:11} }, grid: { display: false }}
+      }
+    },
+    plugins: [{
+      id: 'globalDroplines',
+      afterDatasetsDraw(chart) {
+        const { ctx, data, scales } = chart;
+        const ds = data.datasets[0];
+        const yBottom = scales.y.getPixelForValue(70);
+        ds.data.forEach((val, i) => {
+          if (val === null) return;
+          const x = scales.x.getPixelForValue(i);
+          const y = scales.y.getPixelForValue(val);
+          // línea punteada desde eje hasta punto
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x, yBottom);
+          ctx.lineTo(x, y + 7);
+          ctx.strokeStyle = color(val) + '70';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 4]);
+          ctx.stroke();
+          ctx.restore();
+          // etiqueta encima
+          ctx.save();
+          ctx.font = '600 11px Arial';
+          ctx.fillStyle = color(val);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(val + '%', x, y - 9);
+          ctx.restore();
+        });
+      }
+    }]
+  });
+}
+
+// ─── CHART OFICINAS ───
+function renderChartOficinas(d, mes) {
+  const datos = d.records.filter(r=>r[mes]!==null).sort((a,b)=>a[mes]-b[mes]);
+  const labels = datos.map(r=>r.oficina);
+  const values = datos.map(r=>r[mes]);
+  document.getElementById('chart-oficinas-wrap').style.height = '420px';
+  if (chartOficinas) chartOficinas.destroy();
+  chartOficinas = new Chart(document.getElementById('chart-oficinas'), {
+    type: 'line',
+    data: { labels, datasets: [{
+      data: values, borderColor: '#1a1a2e', borderWidth: 2,
+      pointBackgroundColor: values.map(v=>color(v)), pointBorderColor: values.map(v=>color(v)),
+      pointRadius: 6, pointHoverRadius: 8, tension: 0.3, fill: false
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 24 } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx=>' '+ctx.parsed.y+'%' }}},
+      scales: {
+        x: { ticks: { font:{size:10}, maxRotation:45, minRotation:30 }, grid: { display:false }},
+        y: { min: Math.max(0,Math.min(...values)-8), max:102, ticks: { callback:v=>v+'%', font:{size:11} }, grid: { color:'rgba(0,0,0,0.05)' }}
+      }
+    },
+    plugins: [{
+      id: 'inlineLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx, data, scales } = chart;
+        const yZero = scales.y.getPixelForValue(scales.y.min);
+        data.datasets[0].data.forEach((val, i) => {
+          const x = scales.x.getPixelForValue(i);
+          const y = scales.y.getPixelForValue(val);
+          ctx.save();
+          ctx.beginPath(); ctx.moveTo(x, yZero); ctx.lineTo(x, y);
+          ctx.strokeStyle = color(val)+'55'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]); ctx.stroke();
+          ctx.restore();
+          ctx.save();
+          ctx.font='600 11px Arial'; ctx.fillStyle=color(val); ctx.textAlign='center'; ctx.textBaseline='bottom';
+          ctx.fillText(val+'%', x, y-8);
+          ctx.restore();
+        });
+      }
+    }]
+  });
+}
+
+// ─── CHART OFICINA INDIVIDUAL ───
+function renderChartOficina(rec, d) {
+  const avail = d.months.filter(m => rec[m]!==null);
+  const labels = avail.map(m => MESES_NOMBRE[m]||m);
+  const values = avail.map(m => rec[m]);
+  if (chartOficina) chartOficina.destroy();
+  chartOficina = new Chart(document.getElementById('chart-oficina'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data:values, backgroundColor:values.map(v=>color(v)), borderRadius:3 }]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ display:false }},
+      scales: {
+        y: { min:40, max:100, ticks:{ callback:v=>v+'%', font:{size:10} }, grid:{ color:'rgba(0,0,0,0.05)' }},
+        x: { ticks:{ font:{size:10} }, grid:{ display:false }}
+      }
+    }
+  });
+}
+
+// ─── CONSULTA PUNTUAL ───
+function updateSpot() {
+  const d = DATA[dir]; if (!d) return;
+  const mes = document.getElementById('sel-mes').value;
+  const of = document.getElementById('sel-oficina').value;
+  const rec = d.records.find(r => r.oficina===of);
+  const val = rec ? rec[mes] : null;
+  const cls = val==null?'':val>=95?'color:#27ae60':val>=85?'color:#e67e22':'color:#e74c3c';
+  document.getElementById('spot-result').innerHTML =
+    `<span class="spot-label">${of} · ${MESES_NOMBRE[mes]||mes} · ${dir}</span><span style="${cls}">${val!=null?val+'%':'Sin datos'}</span>`;
+  if (rec) renderChartOficina(rec, d);
+}
+
+// ─── TABLA FIJAS ───
+function renderTablaFijas(d) {
+  const avail = d.months.filter(m => d.records.some(r=>r[m]!==null));
+  const tbody = document.querySelector('#tabla-fijas tbody');
+  document.querySelector('#tabla-fijas thead tr').innerHTML =
+    '<th>Oficina</th>' + avail.map(m=>`<th>${MESES_NOMBRE[m]||m}</th>`).join('') + '<th>Prom.</th>';
+  tbody.innerHTML = FIJAS.map(of => {
+    const rec = d.records.find(r=>r.oficina.toLowerCase()===of.toLowerCase());
+    if (!rec) return `<tr><td>${of}</td><td colspan="${avail.length+1}" style="color:#aaa">Sin datos</td></tr>`;
+    const vals = avail.map(m=>rec[m]).filter(v=>v!==null);
+    const prom = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10 : null;
+    return `<tr><td><strong>${rec.oficina}</strong></td>${avail.map(m=>{const v=rec[m];return`<td>${v!=null?badge(v):'<span style="color:#ccc">—</span>'}</td>`;}).join('')}<td>${badge(prom)}</td></tr>`;
+  }).join('');
+}
+
+// ─── TORTA DEMORAS ───
+function renderDemoras(d) {
+  const conteo = {};
+  d.records.forEach(r => {
+    const val = r._demora;
+    if (val==null||String(val).trim()==='') return;
+    const key = String(val).trim()+'d h';
+    conteo[key] = (conteo[key]||0)+1;
+  });
+  // Ordenar por valor numérico
+  const sorted = Object.entries(conteo).sort((a,b)=>parseFloat(a[0])-parseFloat(b[0]));
+  const labels = sorted.map(([k])=>k.replace('d h',' día'+( parseFloat(k)===1?'':'s')+' hábil'+(parseFloat(k)===1?'':'es')));
+  const values = sorted.map(([,v])=>v);
+  const total = values.reduce((a,b)=>a+b,0);
+  const pieColors = ['#2980b9','#27ae60','#e74c3c','#f39c12','#8e44ad'];
+  const legend = document.getElementById('demoras-legend');
+  if (legend) legend.innerHTML = labels.map((l,i)=>{
+    const pct = total?Math.round(values[i]/total*100):0;
+    return `<div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${pieColors[i%pieColors.length]};flex-shrink:0;"></span><span><strong>${l}</strong> — ${values[i]} oficina${values[i]!==1?'s':''} (${pct}%)</span></div>`;
+  }).join('');
+  const canvas = document.getElementById('chart-demoras');
+  if (!canvas||!labels.length) return;
+  if (chartDemoras) { chartDemoras.destroy(); chartDemoras=null; }
+  chartDemoras = new Chart(canvas, {
+    type: 'doughnut',
+    data: { labels, datasets:[{ data:values, backgroundColor:pieColors.slice(0,labels.length), borderWidth:3, borderColor:'#fff' }]},
+    options: {
+      responsive:true, maintainAspectRatio:true, cutout:'62%',
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>` ${ctx.label}: ${ctx.raw} oficinas (${total?Math.round(ctx.raw/total*100):0}%)` }}}
+    }
+  });
+}
+</script>
+</body>
+</html>
