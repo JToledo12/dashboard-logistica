@@ -820,12 +820,12 @@ function secGetSummaryLabel() {
 
 function secRender() {
   if (!secRawData.length) return;
-  const rows = getFilteredData();
-  document.getElementById('filter-summary').textContent = getSummaryLabel();
-  renderResumen(rows);
-  renderStock(rows);
-  renderReventa(rows);
-  renderFacturacion(rows);
+  const rows = secGetFilteredData();
+  document.getElementById('filter-summary').textContent = secGetSummaryLabel();
+  secRenderResumen(rows);
+  secRenderStock(rows);
+  secRenderReventa(rows);
+  secRenderFacturacion(rows);
 }
 
 // ─── HELPERS VISUALES ───
@@ -834,11 +834,11 @@ function secMakeBreakdown(containerId, total, items, colorPalette) {
   if (!el) return;
   if (!total) { el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px 0">Sin datos para este período</div>'; return; }
   el.innerHTML = items.map((item, i) => {
-    const p = pct(item.val, total);
+    const p = secPct(item.val, total);
     const color = colorPalette[i % colorPalette.length];
     return `<div class="breakdown-row">
       <span class="breakdown-name">${item.name}</span>
-      <span class="breakdown-val">${fmtNum(item.val)}</span>
+      <span class="breakdown-val">${secFmtNum(item.val)}</span>
       <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${p}%;background:${color}"></div></div>
       <span class="breakdown-pct" style="background:${color}">${p}%</span>
     </div>`;
@@ -912,7 +912,7 @@ function secMakeDoughnut(id, labels, values, colors) {
       responsive: true, maintainAspectRatio: false, cutout: '60%',
       plugins: {
         legend: { position: 'right', labels: { font:{size:11}, boxWidth:12, padding:8 } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtNum(ctx.raw)}` } }
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${secFmtNum(ctx.raw)}` } }
       }
     }
   });
@@ -923,7 +923,7 @@ function secGetChartRows() {
   if (gran === 'dia') return getFilteredData();
   if (gran === 'mes') {
     // Por semana del mes
-    const rows = getFilteredData();
+    const rows = secGetFilteredData();
     const bySem = {};
     rows.forEach(r => {
       const k = 'Sem ' + r._semana;
@@ -933,7 +933,7 @@ function secGetChartRows() {
     return Object.entries(bySem).map(([k,v]) => ({ _label: k, _rows: v }));
   }
   if (gran === 'semana') {
-    const rows = getFilteredData();
+    const rows = secGetFilteredData();
     return rows.map(r => ({ _label: r['DÍA']?.substring(0,3) || r._dateStr?.slice(5), _rows: [r] }));
   }
   // año → por mes
@@ -951,32 +951,32 @@ function secGetChartRows() {
 // RESUMEN
 // ═══════════════════════════════════════════
 function secRenderResumen(rows) {
-  const vStock = sum(rows, 'VERIFICACIÓN ALMACÉN STOCK [uds]');
-  const vReventa = sum(rows, 'VERIFICACIÓN ALMACÉN REVENTA [uds]');
-  const fAlm = sum(rows, 'FACTURACIÓN ALMACÉN [pedidos]');
-  const fReventa = sum(rows, 'FACTURACIÓN REVENTA [pedidos]');
-  const fExp = sum(rows, 'FACTURACIÓN EXPEDICIÓN [pedidos]');
+  const vStock = secSum(rows, 'VERIFICACIÓN ALMACÉN STOCK [uds]');
+  const vReventa = secSum(rows, 'VERIFICACIÓN ALMACÉN REVENTA [uds]');
+  const fAlm = secSum(rows, 'FACTURACIÓN ALMACÉN [pedidos]');
+  const fReventa = secSum(rows, 'FACTURACIÓN REVENTA [pedidos]');
+  const fExp = secSum(rows, 'FACTURACIÓN EXPEDICIÓN [pedidos]');
 
   document.getElementById('resumen-metrics').innerHTML = `
-    <div class="metric"><div class="lbl">Verif. Stock [uds]</div><div class="val">${fmtNum(vStock)}</div></div>
-    <div class="metric accent"><div class="lbl">Verif. Reventa [uds]</div><div class="val">${fmtNum(vReventa)}</div></div>
-    <div class="metric"><div class="lbl">Fact. Almacén [ped]</div><div class="val">${fmtNum(fAlm)}</div></div>
-    <div class="metric accent"><div class="lbl">Fact. Reventa [ped]</div><div class="val">${fmtNum(fReventa)}</div></div>
-    <div class="metric"><div class="lbl">Fact. Expedición [ped]</div><div class="val">${fmtNum(fExp)}</div></div>`;
+    <div class="metric"><div class="lbl">Verif. Stock [uds]</div><div class="val">${secFmtNum(vStock)}</div></div>
+    <div class="metric accent"><div class="lbl">Verif. Reventa [uds]</div><div class="val">${secFmtNum(vReventa)}</div></div>
+    <div class="metric"><div class="lbl">Fact. Almacén [ped]</div><div class="val">${secFmtNum(fAlm)}</div></div>
+    <div class="metric accent"><div class="lbl">Fact. Reventa [ped]</div><div class="val">${secFmtNum(fReventa)}</div></div>
+    <div class="metric"><div class="lbl">Fact. Expedición [ped]</div><div class="val">${secFmtNum(fExp)}</div></div>`;
 
-  const chartRows = getChartRows();
+  const chartRows = secGetChartRows();
   const labels = chartRows.map(r => r._label || r._dateStr?.slice(5) || '');
-  const vStockArr = chartRows.map(r => sum(r._rows||[r], 'VERIFICACIÓN ALMACÉN STOCK [uds]'));
-  const vReventaArr = chartRows.map(r => sum(r._rows||[r], 'VERIFICACIÓN ALMACÉN REVENTA [uds]'));
-  makeChart('chart-veri-comp', labels, [
+  const vStockArr = chartRows.map(r => secSum(r._rows||[r], 'VERIFICACIÓN ALMACÉN STOCK [uds]'));
+  const vReventaArr = chartRows.map(r => secSum(r._rows||[r], 'VERIFICACIÓN ALMACÉN REVENTA [uds]'));
+  secMakeChart('chart-veri-comp', labels, [
     { label: 'Stock', data: vStockArr },
     { label: 'Reventa', data: vReventaArr }
   ]);
 
-  const fAlmArr = chartRows.map(r => sum(r._rows||[r], 'FACTURACIÓN ALMACÉN [pedidos]'));
-  const fRevArr = chartRows.map(r => sum(r._rows||[r], 'FACTURACIÓN REVENTA [pedidos]'));
-  const fExpArr = chartRows.map(r => sum(r._rows||[r], 'FACTURACIÓN EXPEDICIÓN [pedidos]'));
-  makeChart('chart-fact-comp', labels, [
+  const fAlmArr = chartRows.map(r => secSum(r._rows||[r], 'FACTURACIÓN ALMACÉN [pedidos]'));
+  const fRevArr = chartRows.map(r => secSum(r._rows||[r], 'FACTURACIÓN REVENTA [pedidos]'));
+  const fExpArr = chartRows.map(r => secSum(r._rows||[r], 'FACTURACIÓN EXPEDICIÓN [pedidos]'));
+  secMakeChart('chart-fact-comp', labels, [
     { label: 'Almacén', data: fAlmArr },
     { label: 'Reventa', data: fRevArr },
     { label: 'Expedición', data: fExpArr }
@@ -987,86 +987,86 @@ function secRenderResumen(rows) {
 // ALMACÉN STOCK
 // ═══════════════════════════════════════════
 function secRenderStock(rows) {
-  const vTotal = sum(rows, 'VERIFICACIÓN ALMACÉN STOCK [uds]');
-  const fTotal = sum(rows, 'FACTURACIÓN ALMACÉN [pedidos]');
+  const vTotal = secSum(rows, 'VERIFICACIÓN ALMACÉN STOCK [uds]');
+  const fTotal = secSum(rows, 'FACTURACIÓN ALMACÉN [pedidos]');
 
   document.getElementById('stock-metrics').innerHTML = `
-    <div class="metric"><div class="lbl">Verificación Total [uds]</div><div class="val">${fmtNum(vTotal)}</div></div>
-    <div class="metric accent"><div class="lbl">Facturación Total [pedidos]</div><div class="val">${fmtNum(fTotal)}</div></div>`;
+    <div class="metric"><div class="lbl">Verificación Total [uds]</div><div class="val">${secFmtNum(vTotal)}</div></div>
+    <div class="metric accent"><div class="lbl">Facturación Total [pedidos]</div><div class="val">${secFmtNum(fTotal)}</div></div>`;
 
   const vColors = ['#E8262A','#1B2A4A','#0097A7'];
   const vItems = [
-    { name: 'Stock y Otros', val: sum(rows, 'VERIFICACIÓN ALM - Pedido de Stock y Otros Artículos (uds)') },
-    { name: 'Laboratorio', val: sum(rows, 'VERIFICACIÓN ALM - Pedido de Laboratorio (uds)') },
-    { name: 'Cajonera', val: sum(rows, 'VERIFICACIÓN ALM - Pedido de Cajonera (uds)') },
+    { name: 'Stock y Otros', val: secSum(rows, 'VERIFICACIÓN ALM - Pedido de Stock y Otros Artículos (uds)') },
+    { name: 'Laboratorio', val: secSum(rows, 'VERIFICACIÓN ALM - Pedido de Laboratorio (uds)') },
+    { name: 'Cajonera', val: secSum(rows, 'VERIFICACIÓN ALM - Pedido de Cajonera (uds)') },
   ];
-  makeChart('chart-stock-veri', ['Stock y Otros','Laboratorio','Cajonera'], [{
+  secMakeChart('chart-stock-veri', ['Stock y Otros','Laboratorio','Cajonera'], [{
     label: 'Unidades', data: vItems.map(i=>i.val),
     backgroundColor: vColors
   }]);
-  makeBreakdown('bd-stock-veri', vTotal, vItems, vColors);
+  secMakeBreakdown('bd-stock-veri', vTotal, vItems, vColors);
 
   const fColors = ['#E8262A','#1B2A4A'];
   const fItems = [
-    { name: 'Stock y Otros', val: sum(rows, 'FACTURACIÓN ALM - Pedido de Stock y Otros Artículos (pedidos)') },
-    { name: 'Laboratorio', val: sum(rows, 'FACTURACIÓN ALM - Pedido de Laboratorio (pedidos)') },
+    { name: 'Stock y Otros', val: secSum(rows, 'FACTURACIÓN ALM - Pedido de Stock y Otros Artículos (pedidos)') },
+    { name: 'Laboratorio', val: secSum(rows, 'FACTURACIÓN ALM - Pedido de Laboratorio (pedidos)') },
   ];
-  makeChart('chart-stock-fact', ['Stock y Otros','Laboratorio'], [{
+  secMakeChart('chart-stock-fact', ['Stock y Otros','Laboratorio'], [{
     label: 'Pedidos', data: fItems.map(i=>i.val),
     backgroundColor: fColors
   }]);
-  makeBreakdown('bd-stock-fact', fTotal, fItems, fColors);
+  secMakeBreakdown('bd-stock-fact', fTotal, fItems, fColors);
 }
 
 // ═══════════════════════════════════════════
 // ALMACÉN REVENTA
 // ═══════════════════════════════════════════
 function secRenderReventa(rows) {
-  const vTotal = sum(rows, 'VERIFICACIÓN ALMACÉN REVENTA [uds]');
-  const fTotal = sum(rows, 'FACTURACIÓN REVENTA [pedidos]');
+  const vTotal = secSum(rows, 'VERIFICACIÓN ALMACÉN REVENTA [uds]');
+  const fTotal = secSum(rows, 'FACTURACIÓN REVENTA [pedidos]');
 
   document.getElementById('reventa-metrics').innerHTML = `
-    <div class="metric"><div class="lbl">Verificación Total [uds]</div><div class="val">${fmtNum(vTotal)}</div></div>
-    <div class="metric accent"><div class="lbl">Facturación Total [pedidos]</div><div class="val">${fmtNum(fTotal)}</div></div>`;
+    <div class="metric"><div class="lbl">Verificación Total [uds]</div><div class="val">${secFmtNum(vTotal)}</div></div>
+    <div class="metric accent"><div class="lbl">Facturación Total [pedidos]</div><div class="val">${secFmtNum(fTotal)}</div></div>`;
 
   const vColors = ['#E8262A','#1B2A4A','#0097A7','#F39C12','#27AE60'];
   const vItems = [
-    { name: 'LC RX', val: sum(rows, 'VERIFICACIÓN REV - Lentes de Contacto RX (uds)') },
-    { name: 'LC DX', val: sum(rows, 'VERIFICACIÓN REV - Lentes de Contacto DX (uds)') },
-    { name: 'Líquidos', val: sum(rows, 'VERIFICACIÓN REV - Líquidos (uds)') },
-    { name: 'On Demand', val: sum(rows, 'VERIFICACIÓN REV - On Demand (uds)') },
-    { name: 'Armazones', val: sum(rows, 'VERIFICACIÓN REV - Armazones (uds)') },
+    { name: 'LC RX', val: secSum(rows, 'VERIFICACIÓN REV - Lentes de Contacto RX (uds)') },
+    { name: 'LC DX', val: secSum(rows, 'VERIFICACIÓN REV - Lentes de Contacto DX (uds)') },
+    { name: 'Líquidos', val: secSum(rows, 'VERIFICACIÓN REV - Líquidos (uds)') },
+    { name: 'On Demand', val: secSum(rows, 'VERIFICACIÓN REV - On Demand (uds)') },
+    { name: 'Armazones', val: secSum(rows, 'VERIFICACIÓN REV - Armazones (uds)') },
   ];
-  makeChart('chart-rev-veri', vItems.map(i=>i.name), [{
+  secMakeChart('chart-rev-veri', vItems.map(i=>i.name), [{
     label:'Unidades', data:vItems.map(i=>i.val), backgroundColor:vColors
   }]);
-  makeBreakdown('bd-rev-veri', vTotal, vItems, vColors);
+  secMakeBreakdown('bd-rev-veri', vTotal, vItems, vColors);
 
   const fColors = ['#E8262A','#1B2A4A','#0097A7'];
   const fItems = [
-    { name: 'LC RX', val: sum(rows, 'FACTURACIÓN REV - Lentes de Contacto RX (pedidos)') },
-    { name: 'Armazones', val: sum(rows, 'FACTURACIÓN REV - Armazones (pedidos)') },
-    { name: 'Líquidos', val: sum(rows, 'FACTURACIÓN REV - Líquidos (pedidos)') },
+    { name: 'LC RX', val: secSum(rows, 'FACTURACIÓN REV - Lentes de Contacto RX (pedidos)') },
+    { name: 'Armazones', val: secSum(rows, 'FACTURACIÓN REV - Armazones (pedidos)') },
+    { name: 'Líquidos', val: secSum(rows, 'FACTURACIÓN REV - Líquidos (pedidos)') },
   ];
-  makeChart('chart-rev-fact', fItems.map(i=>i.name), [{
+  secMakeChart('chart-rev-fact', fItems.map(i=>i.name), [{
     label:'Pedidos', data:fItems.map(i=>i.val), backgroundColor:fColors
   }]);
-  makeBreakdown('bd-rev-fact', fTotal, fItems, fColors);
+  secMakeBreakdown('bd-rev-fact', fTotal, fItems, fColors);
 }
 
 // ═══════════════════════════════════════════
 // FACTURACIÓN EXPEDICIÓN
 // ═══════════════════════════════════════════
 function secRenderFacturacion(rows) {
-  const total = sum(rows, 'FACTURACIÓN EXPEDICIÓN [pedidos]');
+  const total = secSum(rows, 'FACTURACIÓN EXPEDICIÓN [pedidos]');
   document.getElementById('facturacion-metrics').innerHTML = `
-    <div class="metric"><div class="lbl">Facturación Expedición [pedidos]</div><div class="val">${fmtNum(total)}</div><div class="sub">${getSummaryLabel()}</div></div>`;
+    <div class="metric"><div class="lbl">Facturación Expedición [pedidos]</div><div class="val">${secFmtNum(total)}</div><div class="sub">${getSummaryLabel()}</div></div>`;
 
   // Evolución: si es día mostramos semana del día; si es semana los días; si es mes las semanas; si es año los meses
-  const chartRows = getChartRows();
+  const chartRows = secGetChartRows();
   const labels = chartRows.map(r => r._label || r._dateStr?.slice(5) || '');
-  const vals = chartRows.map(r => sum(r._rows||[r], 'FACTURACIÓN EXPEDICIÓN [pedidos]'));
-  makeChart('chart-exp-evol', labels, [{ label:'Pedidos', data:vals }], 'line');
+  const vals = chartRows.map(r => secSum(r._rows||[r], 'FACTURACIÓN EXPEDICIÓN [pedidos]'));
+  secMakeChart('chart-exp-evol', labels, [{ label:'Pedidos', data:vals }], 'line');
 }
 
 // ═══════════════════════════════════════════
