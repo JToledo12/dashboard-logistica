@@ -395,8 +395,8 @@ function parseCSV(text, sheetKey) {
 
 // ─── CARGA AUTOMÁTICA DESDE GITHUB ───
 const GITHUB_FILES = [
-  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/ida.csv',    key: 'IDA',    infoId: 'info-ida' },
-  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/vuelta.csv', key: 'VUELTA', infoId: 'info-vuelta' }
+  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/refs/heads/main/ida.csv',    key: 'IDA',    infoId: 'info-ida' },
+  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/refs/heads/main/vuelta.csv', key: 'VUELTA', infoId: 'info-vuelta' }
 ];
 
 async function loadData(manual = false) {
@@ -660,7 +660,7 @@ const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
 async function secLoadData() {
   document.getElementById('last-update').textContent = 'Cargando...';
   try {
-    const url = 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/sectores.csv?t=' + Date.now();
+    const url = 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/refs/heads/main/sectores.csv?t=' + Date.now();
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
