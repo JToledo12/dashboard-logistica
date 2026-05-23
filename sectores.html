@@ -222,7 +222,7 @@ const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
 // ═══════════════════════════════════════════
 async function loadData() {
   document.getElementById('last-update').textContent = 'Cargando...';
-  const csvUrl = 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/INDICADORES_SECTORES_-_LOGÍSTICA_2026.csv';
+  const csvUrl = 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/main/sectores.csv';
   const proxies = [
     csvUrl, // directo primero
     'https://api.allorigins.win/raw?url=' + encodeURIComponent(csvUrl),
