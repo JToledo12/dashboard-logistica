@@ -725,7 +725,7 @@ function secPopulateFilters() {
   if (!secRawData.length) return;
 
   // Fechas disponibles
-  const dates = [...new Set(rawData.map(r => r._dateStr))].sort();
+  const dates = [...new Set(secRawData.map(r => r._dateStr))].sort();
   const selFecha = document.getElementById('sel-fecha');
   selFecha.min = dates[0];
   selFecha.max = dates[dates.length-1];
@@ -734,12 +734,12 @@ function secPopulateFilters() {
   selFecha.value = lastWithData ? lastWithData._dateStr : dates[dates.length-1];
 
   // Semanas
-  const semanas = [...new Set(rawData.map(r => r._semana))].sort((a,b)=>a-b);
+  const semanas = [...new Set(secRawData.map(r => r._semana))].sort((a,b)=>a-b);
   const selSem = document.getElementById('sel-semana');
   selSem.innerHTML = semanas.map(s => `<option value="${s}">Semana ${s}</option>`).join('');
 
   // Meses
-  const meses = [...new Set(rawData.map(r => r._mes))].sort((a,b)=>a-b);
+  const meses = [...new Set(secRawData.map(r => r._mes))].sort((a,b)=>a-b);
   const selMes = document.getElementById('sel-mes');
   selMes.innerHTML = meses.map(m => `<option value="${m}">${MESES[m-1]}</option>`).join('');
   // Default al mes más reciente con datos
