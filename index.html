@@ -395,8 +395,8 @@ function parseCSV(text, sheetKey) {
 
 // ─── CARGA AUTOMÁTICA DESDE GITHUB ───
 const GITHUB_FILES = [
-  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/refs/heads/main/ida.csv',    key: 'IDA',    infoId: 'info-ida' },
-  { url: 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/refs/heads/main/vuelta.csv', key: 'VUELTA', infoId: 'info-vuelta' }
+  { url: 'https://api.github.com/repos/JToledo12/dashboard-logistica/contents/ida.csv',    key: 'IDA',    infoId: 'info-ida' },
+  { url: 'https://api.github.com/repos/JToledo12/dashboard-logistica/contents/vuelta.csv', key: 'VUELTA', infoId: 'info-vuelta' }
 ];
 
 async function loadData(manual = false) {
@@ -408,7 +408,7 @@ async function loadData(manual = false) {
     if (infoEl) infoEl.textContent = '⏳ Cargando...';
     try {
       const url = f.url + '?t=' + Date.now();
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3.raw' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
       parseCSV(text, f.key);
@@ -660,11 +660,13 @@ const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
 async function secLoadData() {
   document.getElementById('last-update').textContent = 'Cargando...';
   try {
-    const url = 'https://raw.githubusercontent.com/JToledo12/dashboard-logistica/refs/heads/main/sectores.csv?t=' + Date.now();
-    const res = await fetch(url);
+    // Usar GitHub API — funciona con cualquier separador y repo público
+    const apiUrl = 'https://api.github.com/repos/JToledo12/dashboard-logistica/contents/sectores.csv';
+    const res = await fetch(apiUrl + '?t=' + Date.now(), {
+      headers: { 'Accept': 'application/vnd.github.v3.raw' }
+    });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    if (text.trim().startsWith('<')) throw new Error('Respuesta inválida');
     secParseData(text);
     const now = new Date();
     document.getElementById('last-update').textContent = 'Act: ' +
