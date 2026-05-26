@@ -752,9 +752,9 @@ function secSetGran(g, btn) {
   secGran = g;
   document.querySelectorAll('.gran-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['fg-fecha','fg-semana','fg-mes','fg-año'].forEach(id =>
+  ['sec-fg-fecha','sec-fg-semana','sec-fg-mes','sec-fg-año'].forEach(id =>
     document.getElementById(id).style.display = 'none');
-  const map = { dia:'fg-fecha', semana:'fg-semana', mes:'fg-mes', año:'fg-año' };
+  const map = { dia:'sec-fg-fecha', semana:'sec-fg-semana', mes:'sec-fg-mes', año:'sec-fg-año' };
   document.getElementById(map[g]).style.display = '';
   secRender();
 }
