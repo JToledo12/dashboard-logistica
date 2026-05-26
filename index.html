@@ -216,23 +216,23 @@
         <button class="gran-btn" onclick="secSetGran('año',this)">Año</button>
       </div>
     </div>
-    <div class="filter-group" id="fg-fecha" >
+    <div class="filter-group" id="sec-fg-fecha" >
       <label>Fecha</label>
-      <input type="date" id="sel-fecha" onchange="secRender()">
+      <input type="date" id="sec-sel-fecha" onchange="secRender()">
     </div>
-    <div class="filter-group" id="fg-semana" style="display:none">
+    <div class="filter-group" id="sec-fg-semana" style="display:none">
       <label>Semana</label>
-      <select id="sel-semana" onchange="secRender()"></select>
+      <select id="sec-sel-semana" onchange="secRender()"></select>
     </div>
-    <div class="filter-group" id="fg-mes" style="display:none">
+    <div class="filter-group" id="sec-fg-mes" style="display:none">
       <label>Mes</label>
-      <select id="sel-mes" onchange="secRender()"></select>
+      <select id="sec-sel-mes" onchange="secRender()"></select>
     </div>
-    <div class="filter-group" id="fg-año" style="display:none">
+    <div class="filter-group" id="sec-fg-año" style="display:none">
       <label>Año</label>
-      <select id="sel-año" onchange="secRender()"><option value="2026">2026</option></select>
+      <select id="sec-sel-año" onchange="secRender()"><option value="2026">2026</option></select>
     </div>
-    <div class="filter-summary" id="filter-summary">Seleccioná un período</div>
+    <div class="filter-summary" id="sec-filter-summary">Seleccioná un período</div>
   </div>
 </div>
 
@@ -325,7 +325,7 @@ function switchTab(tab) {
   document.getElementById('panel-' + tab).classList.add('active');
   // Mostrar/ocultar filtro sectores
   const filterArea = document.getElementById('filter-area');
-  if (filterArea) filterArea.style.display = ['resumen','stock','reventa','facturacion'].includes(tab) ? '' : 'none';
+  if (filterArea) filterArea.style.display = ['resumen','stock','reventa','facturacion'].includes(tab) ? 'block' : 'none';
   // Renderizar según pestaña
   if (tab === 'viz') { render(); }
   else { secRender(); }
@@ -728,7 +728,7 @@ function secPopulateFilters() {
 
   // Fechas disponibles
   const dates = [...new Set(secRawData.map(r => r._dateStr))].sort();
-  const selFecha = document.getElementById('sel-fecha');
+  const selFecha = document.getElementById('sec-sel-fecha');
   selFecha.min = dates[0];
   selFecha.max = dates[dates.length-1];
   // Default: último día con datos
@@ -737,12 +737,12 @@ function secPopulateFilters() {
 
   // Semanas
   const semanas = [...new Set(secRawData.map(r => r._semana))].sort((a,b)=>a-b);
-  const selSem = document.getElementById('sel-semana');
+  const selSem = document.getElementById('sec-sel-semana');
   selSem.innerHTML = semanas.map(s => `<option value="${s}">Semana ${s}</option>`).join('');
 
   // Meses
   const meses = [...new Set(secRawData.map(r => r._mes))].sort((a,b)=>a-b);
-  const selMes = document.getElementById('sel-mes');
+  const selMes = document.getElementById('sec-sel-mes');
   selMes.innerHTML = meses.map(m => `<option value="${m}">${MESES[m-1]}</option>`).join('');
   // Default al mes más reciente con datos
   if (lastWithData) selMes.value = lastWithData._mes;
@@ -750,7 +750,7 @@ function secPopulateFilters() {
 
 function secSetGran(g, btn) {
   secGran = g;
-  document.querySelectorAll('.secGran-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.gran-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   ['fg-fecha','fg-semana','fg-mes','fg-año'].forEach(id =>
     document.getElementById(id).style.display = 'none');
@@ -762,16 +762,16 @@ function secSetGran(g, btn) {
 function secGetFilteredData() {
   if (!secRawData.length) return [];
   if (secGran === 'dia') {
-    const fecha = document.getElementById('sel-fecha').value;
+    const fecha = document.getElementById('sec-sel-fecha').value;
     return secRawData.filter(r => r._dateStr === fecha);
   } else if (secGran === 'semana') {
-    const sem = parseInt(document.getElementById('sel-semana').value);
+    const sem = parseInt(document.getElementById('sec-sel-semana').value);
     return secRawData.filter(r => r._semana === sem);
   } else if (secGran === 'mes') {
-    const mes = parseInt(document.getElementById('sel-mes').value);
+    const mes = parseInt(document.getElementById('sec-sel-mes').value);
     return secRawData.filter(r => r._mes === mes);
   } else {
-    const año = parseInt(document.getElementById('sel-año').value);
+    const año = parseInt(document.getElementById('sec-sel-año').value);
     return secRawData.filter(r => r._date && r._date.getFullYear() === año);
   }
 }
@@ -790,15 +790,15 @@ function secFmtNum(n) {
 
 function secGetSummaryLabel() {
   if (secGran === 'dia') {
-    const v = document.getElementById('sel-fecha').value;
+    const v = document.getElementById('sec-sel-fecha').value;
     if (!v) return 'Sin datos';
     const d = new Date(v + 'T00:00:00');
     return d.toLocaleDateString('es-AR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
   } else if (secGran === 'semana') {
-    const sv = document.getElementById('sel-semana').value;
+    const sv = document.getElementById('sec-sel-semana').value;
     return sv ? 'Semana ' + sv : 'Sin datos';
   } else if (secGran === 'mes') {
-    const mv = document.getElementById('sel-mes').value;
+    const mv = document.getElementById('sec-sel-mes').value;
     if (!mv) return 'Sin datos';
     const m = parseInt(mv);
     const nombre = MESES[m-1] || '';
@@ -816,7 +816,7 @@ function secGetSummaryLabel() {
 function secRender() {
   if (!secRawData.length) return;
   const rows = secGetFilteredData();
-  document.getElementById('filter-summary').textContent = secGetSummaryLabel();
+  document.getElementById('sec-filter-summary').textContent = secGetSummaryLabel();
   secRenderResumen(rows);
   secRenderStock(rows);
   secRenderReventa(rows);
