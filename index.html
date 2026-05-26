@@ -536,21 +536,22 @@ const S_MESES_C = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','
 
 // ── Fetch desde GitHub API ──
 async function sLoad() {
-  document.getElementById('s-status').textContent = 'Cargando...';
+  const statusEl = document.getElementById('last-update');
+  if (statusEl) statusEl.textContent = 'Cargando sectores...';
   try {
-    const res = await fetch(
-      'https://api.github.com/repos/JToledo12/dashboard-logistica/contents/sectores.csv?t=' + Date.now(),
-      { headers: { 'Accept': 'application/vnd.github.v3.raw' } }
-    );
+    const url = 'https://api.github.com/repos/JToledo12/dashboard-logistica/contents/sectores.csv';
+    const res = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3.raw' } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
+    if (!text || text.trim().startsWith('{') || text.trim().startsWith('<')) 
+      throw new Error('Respuesta inválida: ' + text.substring(0,50));
     sParse(text);
     const now = new Date();
-    document.getElementById('s-status').textContent = 'Act: ' +
-      now.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) + ' ' +
-      now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    const ts = now.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) + ' ' +
+               now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    if (statusEl) statusEl.textContent = 'Sectores: ' + ts;
   } catch(e) {
-    document.getElementById('s-status').textContent = 'Error sectores';
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
     console.error('sLoad error:', e.message);
   }
 }
@@ -583,6 +584,7 @@ function sParse(text) {
     r._sem = parseInt(r.SEMANA) || sWeek(d);
   });
 
+  console.log('sParse: rows loaded =', S.raw.length, '| meses:', [...new Set(S.raw.map(r=>r._mes))].sort((a,b)=>a-b));
   sPopFilters();
   sRender();
 }
