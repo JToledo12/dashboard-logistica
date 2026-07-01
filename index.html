@@ -125,7 +125,6 @@
 
 <div class="main-tabs">
   <div class="main-tab active" id="tab-viz"          onclick="switchTab('viz')">🚚 Logística</div>
-  <div class="main-tab"        id="tab-resumen"       onclick="switchTab('resumen')">📊 Resumen Sectores</div>
   <div class="main-tab"        id="tab-stock"         onclick="switchTab('stock')">📦 Almacén Stock</div>
   <div class="main-tab"        id="tab-reventa"       onclick="switchTab('reventa')">🔄 Almacén Reventa</div>
   <div class="main-tab"        id="tab-facturacion"   onclick="switchTab('facturacion')">🧾 Facturación Expedición</div>
@@ -231,23 +230,13 @@
   </div>
 </div>
 
-<div class="panel" id="panel-resumen">
-  <div class="main" style="padding-top:0">
-    <div class="metrics" id="s-m-resumen"><div class="card no-data" style="grid-column:1/-1">Cargando...</div></div>
-    <div class="grid-2">
-      <div class="card"><h3>Verificación Stock vs Reventa [uds]</h3><div style="position:relative;height:220px"><canvas id="s-c-vc"></canvas></div></div>
-      <div class="card"><h3>Facturación por sector [pedidos]</h3><div style="position:relative;height:220px"><canvas id="s-c-fc"></canvas></div></div>
-    </div>
-  </div>
-</div>
-
 <div class="panel" id="panel-stock">
   <div class="main" style="padding-top:0">
     <div class="sector-header"><span class="sector-badge badge-stock">📦 Almacén Stock</span></div>
     <div class="metrics" id="s-m-stock"></div>
     <div class="grid-2">
-      <div class="card"><h3>Verificación Almacén Stock [uds]</h3><div style="position:relative;height:200px"><canvas id="s-c-sv"></canvas></div><div class="breakdown" id="s-b-sv"></div></div>
-      <div class="card"><h3>Facturación Almacén [pedidos]</h3><div style="position:relative;height:200px"><canvas id="s-c-sf"></canvas></div><div class="breakdown" id="s-b-sf"></div></div>
+      <div class="card"><h3>Verificación Almacén Stock [uds]</h3><div style="position:relative;height:320px"><canvas id="s-c-sv"></canvas></div><div class="breakdown" id="s-b-sv"></div></div>
+      <div class="card"><h3>Facturación Almacén [pedidos]</h3><div style="position:relative;height:320px"><canvas id="s-c-sf"></canvas></div><div class="breakdown" id="s-b-sf"></div></div>
     </div>
   </div>
 </div>
@@ -257,8 +246,8 @@
     <div class="sector-header"><span class="sector-badge badge-reventa">🔄 Almacén Reventa</span></div>
     <div class="metrics" id="s-m-rev"></div>
     <div class="grid-2">
-      <div class="card"><h3>Verificación Almacén Reventa [uds]</h3><div style="position:relative;height:200px"><canvas id="s-c-rv"></canvas></div><div class="breakdown" id="s-b-rv"></div></div>
-      <div class="card"><h3>Facturación Reventa [pedidos]</h3><div style="position:relative;height:200px"><canvas id="s-c-rf"></canvas></div><div class="breakdown" id="s-b-rf"></div></div>
+      <div class="card"><h3>Verificación Almacén Reventa [uds]</h3><div style="position:relative;height:320px"><canvas id="s-c-rv"></canvas></div><div class="breakdown" id="s-b-rv"></div></div>
+      <div class="card"><h3>Facturación Reventa [pedidos]</h3><div style="position:relative;height:320px"><canvas id="s-c-rf"></canvas></div><div class="breakdown" id="s-b-rf"></div></div>
     </div>
   </div>
 </div>
@@ -279,7 +268,7 @@ function switchTab(tab) {
   document.getElementById('tab-'+tab).classList.add('active');
   document.getElementById('panel-'+tab).classList.add('active');
   const fa=document.getElementById('filter-area');
-  if(fa) fa.style.display=['resumen','stock','reventa','facturacion'].includes(tab)?'':'none';
+  if(fa) fa.style.display=['stock','reventa','facturacion'].includes(tab)?'':'none';
   if(tab==='viz') render(); else sRender();
 }
 
@@ -672,41 +661,163 @@ function sCR(){
   const b={}; S.raw.forEach(r=>{ if(!r._m) return; const k=SMC[r._m-1]; if(!b[k]) b[k]=[]; b[k].push(r); }); return Object.entries(b).map(([k,v])=>({_l:k,_r:v}));
 }
 
-function sChart(id,labels,datasets,type='bar'){
+function sChart(id,labels,datasets,type='bar',callout=false){
   if(S.ch[id]){S.ch[id].destroy();S.ch[id]=null;}
   const canvas=document.getElementById(id); if(!canvas) return;
+  const COLORS=['#E8262A','#1B2A4A','#0097A7','#F39C12','#27AE60','#8E44AD'];
+
+  // Plugin: callout lines from top of each bar to label above
+  const calloutPlugin = {
+    id:'callout_'+id,
+    afterDraw(chart){
+      const{ctx,data,scales,chartArea}=chart;
+      const numDatasets = data.datasets.length;
+      const numBars = data.labels.length;
+
+      // For each bar group (time period), collect {x, yTop, val, label, color}
+      const allPoints = [];
+      data.datasets.forEach((ds,di)=>{
+        const meta = chart.getDatasetMeta(di);
+        if(!meta.visible) return;
+        meta.data.forEach((bar,bi)=>{
+          const val = ds.data[bi];
+          if(!val) return;
+          allPoints.push({
+            x: bar.x,
+            yTop: bar.y,           // top of bar
+            val,
+            label: ds.label,
+            color: COLORS[di%COLORS.length],
+            barIdx: bi,
+            dsIdx: di
+          });
+        });
+      });
+
+      if(!allPoints.length) return;
+
+      // Group by barIdx, sort each group by yTop (highest bar first = smallest yTop)
+      const groups = {};
+      allPoints.forEach(p=>{ if(!groups[p.barIdx]) groups[p.barIdx]=[]; groups[p.barIdx].push(p); });
+
+      const FONT_H = 11;
+      const MIN_GAP = FONT_H + 2;
+      const LINE_H = 14; // line length upward from bar top
+
+      Object.values(groups).forEach(pts=>{
+        // Sort by yTop ascending (tallest bar = smallest y)
+        pts.sort((a,b)=>a.yTop-b.yTop);
+
+        // Place labels: start from yTop of tallest bar, go upward
+        // Assign label y positions avoiding overlap
+        const positions = pts.map((p,i)=>({
+          ...p,
+          labelY: p.yTop - LINE_H - i*(MIN_GAP)
+        }));
+
+        // Clamp to chart area top
+        const minY = chartArea.top + FONT_H;
+        positions.forEach(p=>{ if(p.labelY < minY) p.labelY = minY; });
+
+        // Resolve overlaps bottom-up
+        for(let iter=0;iter<5;iter++){
+          for(let i=positions.length-2;i>=0;i--){
+            if(positions[i].labelY > positions[i+1].labelY - MIN_GAP){
+              positions[i].labelY = positions[i+1].labelY - MIN_GAP;
+            }
+          }
+        }
+
+        positions.forEach(p=>{
+          ctx.save();
+          // Vertical line from bar top upward to label
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.yTop - 2);
+          ctx.lineTo(p.x, p.labelY + 2);
+          ctx.strokeStyle = p.color + 'AA';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2,2]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Small dot at bar top
+          ctx.beginPath();
+          ctx.arc(p.x, p.yTop - 2, 2.5, 0, Math.PI*2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+
+          // Label background for readability
+          ctx.font = 'bold 10px Segoe UI,Arial';
+          const txt = sFmt(p.val);
+          const tw = ctx.measureText(txt).width;
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fillRect(p.x - tw/2 - 2, p.labelY - FONT_H + 1, tw + 4, FONT_H + 1);
+
+          // Label text
+          ctx.fillStyle = p.color;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(txt, p.x, p.labelY + 1);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  // Plugin: simple labels on line chart nodes (for facturación expedición)
+  const nodeLabelsPlugin = {
+    id:'nodeLabels_'+id,
+    afterDatasetsDraw(chart){
+      const{ctx,data}=chart;
+      data.datasets.forEach((ds,di)=>{
+        const meta=chart.getDatasetMeta(di); if(!meta.visible) return;
+        meta.data.forEach((el,i)=>{
+          const val=ds.data[i]; if(!val) return;
+          ctx.save();
+          ctx.font='bold 10px Segoe UI,Arial';
+          ctx.fillStyle='#1B2A4A';
+          ctx.textAlign='center';
+          ctx.textBaseline='bottom';
+          ctx.fillText(sFmt(val),el.x,el.y-8);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
   S.ch[id]=new Chart(canvas,{
     type,
     data:{labels,datasets:datasets.map((ds,i)=>({...ds,
-      backgroundColor:ds.backgroundColor||(SC[i%SC.length]+(type==='bar'?'CC':'')),
-      borderColor:ds.borderColor||SC[i%SC.length],
-      borderWidth:2,borderRadius:type==='bar'?4:0,tension:0.3,fill:false,
-      pointRadius:type==='line'?4:undefined
+      backgroundColor:ds.backgroundColor||(COLORS[i%COLORS.length]+'DD'),
+      borderColor:COLORS[i%COLORS.length],
+      borderWidth:1,
+      borderRadius:type==='bar'?3:0,
+      tension:0.3,
+      fill:false,
+      pointRadius:type==='line'?5:undefined,
+      pointBackgroundColor:type==='line'?COLORS[i%COLORS.length]:undefined,
     }))},
     options:{
-      responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},
+      responsive:true, maintainAspectRatio:false,
+      layout:{padding:{top: callout ? 60 : 28}},
       plugins:{
-        legend:{display:datasets.length>1,labels:{font:{size:11},boxWidth:12}},
-        tooltip:{callbacks:{label:ctx=>' '+sFmt(ctx.parsed.y??ctx.raw)}}
+        legend:{display:datasets.length>1, position:'top', labels:{font:{size:11},boxWidth:12,padding:8}},
+        tooltip:{
+          mode:'index',
+          callbacks:{
+            label:ctx=>' '+ctx.dataset.label+': '+sFmt(ctx.parsed.y??ctx.raw),
+          }
+        }
       },
       scales:{
         x:{ticks:{font:{size:10},maxRotation:35},grid:{display:false}},
         y:{ticks:{font:{size:11},callback:v=>sFmt(v)},grid:{color:'rgba(0,0,0,0.04)'}}
       }
     },
-    plugins:[{id:'lbl_'+id,afterDatasetsDraw(chart){
-      const{ctx,data}=chart;
-      data.datasets.forEach((ds,di)=>{
-        const meta=chart.getDatasetMeta(di); if(!meta.visible) return;
-        meta.data.forEach((el,i)=>{ const val=ds.data[i]; if(!val) return;
-          ctx.save();ctx.font='bold 10px Segoe UI,Arial';ctx.fillStyle='#1B2A4A';
-          ctx.textAlign='center';ctx.textBaseline='bottom';
-          ctx.fillText(sFmt(val),el.x,el.y-4);ctx.restore();
-        });
-      });
-    }}]
+    plugins: callout ? [calloutPlugin] : (type==='line' ? [nodeLabelsPlugin] : [])
   });
 }
+
 
 function sBD(id,total,items,colors){
   const el=document.getElementById(id); if(!el) return;
@@ -720,47 +831,94 @@ function sRender(){
   if(!S.raw.length) return;
   const rows=sFilt();
   const el=document.getElementById('s-summary'); if(el) el.textContent=sLbl();
-  sRR(rows); sRS(rows); sRRev(rows); sRF(rows);
+  sRS(rows); sRRev(rows); sRF(rows);
 }
 
-function sRR(rows){
-  const el=document.getElementById('s-m-resumen'); if(!el) return;
-  el.innerHTML=`
-    <div class="metric"><div class="lbl">Verif. Stock [uds]</div><div class="val">${sFmt(sSum(rows,'VERIFICACIÓN ALMACÉN STOCK [uds]'))}</div></div>
-    <div class="metric accent"><div class="lbl">Verif. Reventa [uds]</div><div class="val">${sFmt(sSum(rows,'VERIFICACIÓN ALMACÉN REVENTA [uds]'))}</div></div>
-    <div class="metric"><div class="lbl">Fact. Almacén [ped]</div><div class="val">${sFmt(sSum(rows,'FACTURACIÓN ALMACÉN [pedidos]'))}</div></div>
-    <div class="metric accent"><div class="lbl">Fact. Reventa [ped]</div><div class="val">${sFmt(sSum(rows,'FACTURACIÓN REVENTA [pedidos]'))}</div></div>
-    <div class="metric"><div class="lbl">Fact. Expedición [ped]</div><div class="val">${sFmt(sSum(rows,'FACTURACIÓN EXPEDICIÓN [pedidos]'))}</div></div>`;
-  const cr=sCR(),lbls=cr.map(r=>r._l);
-  sChart('s-c-vc',lbls,[{label:'Stock',data:cr.map(r=>sSum(r._r,'VERIFICACIÓN ALMACÉN STOCK [uds]'))},{label:'Reventa',data:cr.map(r=>sSum(r._r,'VERIFICACIÓN ALMACÉN REVENTA [uds]'))}]);
-  sChart('s-c-fc',lbls,[{label:'Almacén',data:cr.map(r=>sSum(r._r,'FACTURACIÓN ALMACÉN [pedidos]'))},{label:'Reventa',data:cr.map(r=>sSum(r._r,'FACTURACIÓN REVENTA [pedidos]'))},{label:'Expedición',data:cr.map(r=>sSum(r._r,'FACTURACIÓN EXPEDICIÓN [pedidos]'))}]);
-}
 
 function sRS(rows){
   const vT=sSum(rows,'VERIFICACIÓN ALMACÉN STOCK [uds]'),fT=sSum(rows,'FACTURACIÓN ALMACÉN [pedidos]');
-  const el=document.getElementById('s-m-stock'); if(el) el.innerHTML=`<div class="metric"><div class="lbl">Verificación [uds]</div><div class="val">${sFmt(vT)}</div></div><div class="metric accent"><div class="lbl">Facturación [pedidos]</div><div class="val">${sFmt(fT)}</div></div>`;
+  const el=document.getElementById('s-m-stock');
+  if(el) el.innerHTML=`
+    <div class="metric"><div class="lbl">Verificación [uds]</div><div class="val">${sFmt(vT)}</div></div>
+    <div class="metric accent"><div class="lbl">Facturación [pedidos]</div><div class="val">${sFmt(fT)}</div></div>`;
+
+  // Evolución temporal por subcategoría — Verificación
+  const cr=sCR();
+  const lbls=cr.map(r=>r._l);
+  sChart('s-c-sv',lbls,[
+    {label:'Stock y Otros', data:cr.map(r=>sSum(r._r,'VERIFICACIÓN ALM - Pedido de Stock y Otros Artículos (uds)'))},
+    {label:'Laboratorio',   data:cr.map(r=>sSum(r._r,'VERIFICACIÓN ALM - Pedido de Laboratorio (uds)'))},
+    {label:'Cajonera',      data:cr.map(r=>sSum(r._r,'VERIFICACIÓN ALM - Pedido de Cajonera (uds)'))}
+  ],'bar',true);
+
+  // Breakdown estático con totales del período
   const VC=['#E8262A','#1B2A4A','#0097A7'];
-  const vI=[{n:'Stock y Otros',v:sSum(rows,'VERIFICACIÓN ALM - Pedido de Stock y Otros Artículos (uds)')},{n:'Laboratorio',v:sSum(rows,'VERIFICACIÓN ALM - Pedido de Laboratorio (uds)')},{n:'Cajonera',v:sSum(rows,'VERIFICACIÓN ALM - Pedido de Cajonera (uds)')}];
-  sChart('s-c-sv',vI.map(i=>i.n),[{label:'Uds',data:vI.map(i=>i.v),backgroundColor:VC}]);
+  const vI=[
+    {n:'Stock y Otros',v:sSum(rows,'VERIFICACIÓN ALM - Pedido de Stock y Otros Artículos (uds)')},
+    {n:'Laboratorio',  v:sSum(rows,'VERIFICACIÓN ALM - Pedido de Laboratorio (uds)')},
+    {n:'Cajonera',     v:sSum(rows,'VERIFICACIÓN ALM - Pedido de Cajonera (uds)')}
+  ];
   sBD('s-b-sv',vT,vI,VC);
+
+  // Evolución temporal — Facturación
   const FC=['#E8262A','#1B2A4A'];
-  const fI=[{n:'Stock y Otros',v:sSum(rows,'FACTURACIÓN ALM - Pedido de Stock y Otros Artículos (pedidos)')},{n:'Laboratorio',v:sSum(rows,'FACTURACIÓN ALM - Pedido de Laboratorio (pedidos)')}];
-  sChart('s-c-sf',fI.map(i=>i.n),[{label:'Ped',data:fI.map(i=>i.v),backgroundColor:FC}]);
+  sChart('s-c-sf',lbls,[
+    {label:'Stock y Otros', data:cr.map(r=>sSum(r._r,'FACTURACIÓN ALM - Pedido de Stock y Otros Artículos (pedidos)'))},
+    {label:'Laboratorio',   data:cr.map(r=>sSum(r._r,'FACTURACIÓN ALM - Pedido de Laboratorio (pedidos)'))}
+  ],'bar',true);
+
+  const fI=[
+    {n:'Stock y Otros',v:sSum(rows,'FACTURACIÓN ALM - Pedido de Stock y Otros Artículos (pedidos)')},
+    {n:'Laboratorio',  v:sSum(rows,'FACTURACIÓN ALM - Pedido de Laboratorio (pedidos)')}
+  ];
   sBD('s-b-sf',fT,fI,FC);
 }
 
+
 function sRRev(rows){
   const vT=sSum(rows,'VERIFICACIÓN ALMACÉN REVENTA [uds]'),fT=sSum(rows,'FACTURACIÓN REVENTA [pedidos]');
-  const el=document.getElementById('s-m-rev'); if(el) el.innerHTML=`<div class="metric"><div class="lbl">Verificación [uds]</div><div class="val">${sFmt(vT)}</div></div><div class="metric accent"><div class="lbl">Facturación [pedidos]</div><div class="val">${sFmt(fT)}</div></div>`;
+  const el=document.getElementById('s-m-rev');
+  if(el) el.innerHTML=`
+    <div class="metric"><div class="lbl">Verificación [uds]</div><div class="val">${sFmt(vT)}</div></div>
+    <div class="metric accent"><div class="lbl">Facturación [pedidos]</div><div class="val">${sFmt(fT)}</div></div>`;
+
+  // Evolución temporal por subcategoría — Verificación
+  const cr=sCR();
+  const lbls=cr.map(r=>r._l);
+  sChart('s-c-rv',lbls,[
+    {label:'LC RX',     data:cr.map(r=>sSum(r._r,'VERIFICACIÓN REV - Lentes de Contacto RX (uds)'))},
+    {label:'LC DX',     data:cr.map(r=>sSum(r._r,'VERIFICACIÓN REV - Lentes de Contacto DX (uds)'))},
+    {label:'Líquidos',  data:cr.map(r=>sSum(r._r,'VERIFICACIÓN REV - Líquidos (uds)'))},
+    {label:'On Demand', data:cr.map(r=>sSum(r._r,'VERIFICACIÓN REV - On Demand (uds)'))},
+    {label:'Armazones', data:cr.map(r=>sSum(r._r,'VERIFICACIÓN REV - Armazones (uds)'))}
+  ],'bar',true);
+
   const VC=['#E8262A','#1B2A4A','#0097A7','#F39C12','#27AE60'];
-  const vI=[{n:'LC RX',v:sSum(rows,'VERIFICACIÓN REV - Lentes de Contacto RX (uds)')},{n:'LC DX',v:sSum(rows,'VERIFICACIÓN REV - Lentes de Contacto DX (uds)')},{n:'Líquidos',v:sSum(rows,'VERIFICACIÓN REV - Líquidos (uds)')},{n:'On Demand',v:sSum(rows,'VERIFICACIÓN REV - On Demand (uds)')},{n:'Armazones',v:sSum(rows,'VERIFICACIÓN REV - Armazones (uds)')}];
-  sChart('s-c-rv',vI.map(i=>i.n),[{label:'Uds',data:vI.map(i=>i.v),backgroundColor:VC}]);
+  const vI=[
+    {n:'LC RX',     v:sSum(rows,'VERIFICACIÓN REV - Lentes de Contacto RX (uds)')},
+    {n:'LC DX',     v:sSum(rows,'VERIFICACIÓN REV - Lentes de Contacto DX (uds)')},
+    {n:'Líquidos',  v:sSum(rows,'VERIFICACIÓN REV - Líquidos (uds)')},
+    {n:'On Demand', v:sSum(rows,'VERIFICACIÓN REV - On Demand (uds)')},
+    {n:'Armazones', v:sSum(rows,'VERIFICACIÓN REV - Armazones (uds)')}
+  ];
   sBD('s-b-rv',vT,vI,VC);
+
+  // Evolución temporal — Facturación
   const FC=['#E8262A','#1B2A4A','#0097A7'];
-  const fI=[{n:'LC RX',v:sSum(rows,'FACTURACIÓN REV - Lentes de Contacto RX (pedidos)')},{n:'Armazones',v:sSum(rows,'FACTURACIÓN REV - Armazones (pedidos)')},{n:'Líquidos',v:sSum(rows,'FACTURACIÓN REV - Líquidos (pedidos)')}];
-  sChart('s-c-rf',fI.map(i=>i.n),[{label:'Ped',data:fI.map(i=>i.v),backgroundColor:FC}]);
+  sChart('s-c-rf',lbls,[
+    {label:'LC RX',     data:cr.map(r=>sSum(r._r,'FACTURACIÓN REV - Lentes de Contacto RX (pedidos)'))},
+    {label:'Armazones', data:cr.map(r=>sSum(r._r,'FACTURACIÓN REV - Armazones (pedidos)'))},
+    {label:'Líquidos',  data:cr.map(r=>sSum(r._r,'FACTURACIÓN REV - Líquidos (pedidos)'))}
+  ],'bar',true);
+
+  const fI=[
+    {n:'LC RX',     v:sSum(rows,'FACTURACIÓN REV - Lentes de Contacto RX (pedidos)')},
+    {n:'Armazones', v:sSum(rows,'FACTURACIÓN REV - Armazones (pedidos)')},
+    {n:'Líquidos',  v:sSum(rows,'FACTURACIÓN REV - Líquidos (pedidos)')}
+  ];
   sBD('s-b-rf',fT,fI,FC);
 }
+
 
 function sRF(rows){
   const total=sSum(rows,'FACTURACIÓN EXPEDICIÓN [pedidos]');
