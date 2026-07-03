@@ -128,6 +128,7 @@
   <div class="main-tab"        id="tab-stock"         onclick="switchTab('stock')">📦 Almacén Stock</div>
   <div class="main-tab"        id="tab-reventa"       onclick="switchTab('reventa')">🔄 Almacén Reventa</div>
   <div class="main-tab"        id="tab-facturacion"   onclick="switchTab('facturacion')">🧾 Facturación Expedición</div>
+  <div class="main-tab"        id="tab-deposito"      onclick="switchTab('deposito')">🏭 Depósito</div>
 </div>
 
 <!-- PANEL VISUALIZACIÓN -->
@@ -260,6 +261,24 @@
   </div>
 </div>
 
+<!-- PANEL DEPÓSITO -->
+<div class="panel" id="panel-deposito">
+  <div class="main" style="padding-top:0">
+    <div class="sector-header"><span class="sector-badge" style="background:#EDE9FE;color:#5B21B6">🏭 Depósito</span></div>
+    <div class="metrics" id="s-m-dep"></div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Preparación de Insumos [pedidos]</h3>
+        <div style="position:relative;height:280px"><canvas id="s-c-dep-prep"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Ingresos por tipo [uds]</h3>
+        <div style="position:relative;height:280px"><canvas id="s-c-dep-ing"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Navegación ──
 function switchTab(tab) {
@@ -268,7 +287,7 @@ function switchTab(tab) {
   document.getElementById('tab-'+tab).classList.add('active');
   document.getElementById('panel-'+tab).classList.add('active');
   const fa=document.getElementById('filter-area');
-  if(fa) fa.style.display=['stock','reventa','facturacion'].includes(tab)?'':'none';
+  if(fa) fa.style.display=['stock','reventa','facturacion','deposito'].includes(tab)?'':'none';
   if(tab==='viz') render(); else sRender();
 }
 
@@ -831,7 +850,7 @@ function sRender(){
   if(!S.raw.length) return;
   const rows=sFilt();
   const el=document.getElementById('s-summary'); if(el) el.textContent=sLbl();
-  sRS(rows); sRRev(rows); sRF(rows);
+  sRS(rows); sRRev(rows); sRF(rows); sRDep(rows);
 }
 
 
@@ -925,6 +944,34 @@ function sRF(rows){
   const el=document.getElementById('s-m-fact'); if(el) el.innerHTML=`<div class="metric"><div class="lbl">Facturación Expedición [pedidos]</div><div class="val">${sFmt(total)}</div><div class="sub">${sLbl()}</div></div>`;
   const cr=sCR();
   sChart('s-c-exp',cr.map(r=>r._l),[{label:'Pedidos',data:cr.map(r=>sSum(r._r,'FACTURACIÓN EXPEDICIÓN [pedidos]'))}],'line');
+}
+
+function sRDep(rows){
+  const prep = sSum(rows,'DEP - Preparación Insumos (pedidos)');
+  const ingStock = sSum(rows,'INGRESOS DEP - Lentes de Stock (uds)');
+  const ingSemi  = sSum(rows,'INGRESOS DEP - Lentes Semiterminadas (uds)');
+  const ingIns   = sSum(rows,'INGRESOS DEP - Insumos (uds)');
+  const ingTotal = ingStock + ingSemi + ingIns;
+
+  const el = document.getElementById('s-m-dep');
+  if(el) el.innerHTML = `
+    <div class="metric"><div class="lbl">Prep. Insumos [pedidos]</div><div class="val">${sFmt(prep)}</div></div>
+    <div class="metric accent"><div class="lbl">Ingresos Totales [uds]</div><div class="val">${sFmt(ingTotal)}</div></div>`;
+
+  const cr = sCR();
+  const lbls = cr.map(r=>r._l);
+
+  // Gráfico 1: Preparación insumos — línea de evolución
+  sChart('s-c-dep-prep', lbls, [
+    {label:'Preparación Insumos', data: cr.map(r=>sSum(r._r,'DEP - Preparación Insumos (pedidos)'))}
+  ], 'line');
+
+  // Gráfico 2: Ingresos por tipo — barras agrupadas con callout
+  sChart('s-c-dep-ing', lbls, [
+    {label:'Lentes de Stock',      data: cr.map(r=>sSum(r._r,'INGRESOS DEP - Lentes de Stock (uds)'))},
+    {label:'Lentes Semiterminadas',data: cr.map(r=>sSum(r._r,'INGRESOS DEP - Lentes Semiterminadas (uds)'))},
+    {label:'Insumos',              data: cr.map(r=>sSum(r._r,'INGRESOS DEP - Insumos (uds)'))}
+  ], 'bar', true);
 }
 
 // Init sectores
