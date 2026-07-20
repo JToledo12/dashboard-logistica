@@ -321,27 +321,45 @@ let chartGlobal, chartOficinas, chartOficina;
 function parseCSV(text, sheetKey) {
   text = text.replace(/^\uFEFF/, '');
   const sep = text.indexOf(';') !== -1 ? ';' : ',';
-  const rows = Papa.parse(text.trim(), { skipEmptyLines: true, delimiter: sep }).data;
+  const rows = Papa.parse(text.trim(), { header: false, skipEmptyLines: true, delimiter: sep }).data;
   let headerIdx = rows.findIndex(r => r.some(c => String(c).trim().toUpperCase() === 'OFICINA'));
   if (headerIdx === -1) headerIdx = 0;
-  const rawHeaders = rows[headerIdx].map(c => String(c).replace(/^\uFEFF/,'').trim().toUpperCase());
-  const offIdx = rawHeaders.findIndex(h => h === 'OFICINA');
+  const rawHeaders = rows[headerIdx].map(c => String(c).replace(/^\uFEFF/,'').trim().toUpperCase().replace(/  +/g,' '));
+  const offIdx    = rawHeaders.findIndex(h => h === 'OFICINA');
   const demoraIdx = rawHeaders.findIndex(h => h.includes('DEMORA'));
-  const colMes = {};
-  rawHeaders.forEach((h, i) => { if (MES_ALIAS[h]) colMes[i] = MES_ALIAS[h]; });
-  const avail = MESES_ORDEN.filter(m => Object.values(colMes).includes(m));
+
+  // Map eficiencia and envios columns
+  const colEfic = {}, colEnvios = {};
+  rawHeaders.forEach((h, i) => { if (MES_ALIAS[h]) colEfic[i] = MES_ALIAS[h]; });
+  // Envios column is always the one right after each eficiencia column
+  Object.keys(colEfic).map(Number).sort((a,b)=>a-b).forEach(ei => {
+    const ni = ei + 1;
+    if (rawHeaders[ni] && rawHeaders[ni].startsWith('ENVIO')) colEnvios[ni] = colEfic[ei];
+  });
+
+  const avail = MESES_ORDEN.filter(m => Object.values(colEfic).includes(m));
   const records = [];
   let globalRec = null;
+
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     const of = String(row[offIdx] || '').trim();
     if (!of || of.toUpperCase() === 'OFICINA') continue;
     const rec = { oficina: of };
-    if (demoraIdx >= 0) { const dv = parseFloat(String(row[demoraIdx]||'').trim()); rec._demora = isNaN(dv) ? null : dv; }
+    if (demoraIdx >= 0) {
+      const dv = parseFloat(String(row[demoraIdx]||'').trim());
+      rec._demora = isNaN(dv) ? null : dv;
+    }
     for (let ci = 0; ci < rawHeaders.length; ci++) {
-      const mk = colMes[ci]; if (!mk) continue;
+      const mk = colEfic[ci]; if (!mk) continue;
       const v = parseFloat(String(row[ci]||'').replace('%','').replace(',','.').trim());
       rec[mk] = !isNaN(v) ? (v <= 1 ? Math.round(v*1000)/10 : Math.round(v*10)/10) : null;
+    }
+    rec._envios = {};
+    for (let ci = 0; ci < rawHeaders.length; ci++) {
+      const mk = colEnvios[ci]; if (!mk) continue;
+      const v = parseFloat(String(row[ci]||'').replace(',','.').trim());
+      rec._envios[mk] = isNaN(v) ? null : Math.round(v);
     }
     for (const m of avail) if (!(m in rec)) rec[m] = null;
     if (of.toUpperCase() === 'EFICIENCIA GLOBAL') globalRec = rec;
@@ -523,7 +541,20 @@ function renderChartOficinas(d, mes) {
     options: {
       responsive: true, maintainAspectRatio: false,
       layout: { padding: { top: 24 } },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx=>' '+ctx.parsed.y+'%' }}},
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        label: ctx => {
+          const rec = datos[ctx.dataIndex];
+          const efic = ctx.parsed.y;
+          const envios = rec._envios && rec._envios[mes] != null ? rec._envios[mes] : null;
+          const desv = (envios !== null && efic !== null) ? Math.round(envios * (1 - efic/100)) : null;
+          const demora = rec._demora != null ? rec._demora : null;
+          const lines = [' Eficiencia: ' + efic + '%'];
+          if (envios !== null) lines.push(' Envíos: ' + envios);
+          if (desv !== null) lines.push(' Desviaciones: ' + desv);
+          if (demora !== null) lines.push(' Demora estándar: ' + demora + ' día' + (demora===1?'':'s') + ' hábil' + (demora===1?'':'es'));
+          return lines;
+        }
+      }}},
       scales: {
         x: { ticks: { font:{size:10}, maxRotation:45, minRotation:30 }, grid: { display:false }},
         y: { min: Math.max(0,Math.min(...values)-8), max:102, ticks: { callback:v=>v+'%', font:{size:11} }, grid: { color:'rgba(0,0,0,0.05)' }}
